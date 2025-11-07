@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>トンにぎゲーム</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    text-align: center;
+    background: #f2f2f2;
+    padding: 20px;
+  }
+  h2 { margin-bottom: 10px; }
+  .scoreboard { font-size: 20px; margin-bottom: 15px; }
+  table { margin: 0 auto; border-collapse: collapse; width: 90%; max-width: 400px; }
+  td {
+    border: 1px solid #aaa;
+    height: 60px;
+    font-size: 28px;
+    text-align: center;
+    background: #fff;
+  }
+  tr.active td { background-color: #ffe58a; } /* ← ハイライト */
+  button {
+    width: 120px;
+    padding: 12px;
+    margin: 8px;
+    font-size: 18px;
+    border: none;
+    border-radius: 8px;
+    background-color: #4CAF50;
+    color: white;
+    cursor: pointer;
+  }
+  button:active { background-color: #45a049; }
+  canvas { margin-top: 20px; width: 90%; max-width: 400px; }
+  @media (max-width: 480px) {
+    td { height: 50px; font-size: 22px; }
+    button { width: 45%; font-size: 16px; padding: 10px; }
+  }
+</style>
+</head>
+<body>
+<h2>🎮 トンにぎゲーム</h2>
+<div class="scoreboard">
+  <strong>スコア:</strong> <span id="current">0</span>　
+  <strong>最高スコア:</strong> <span id="best">0</span>
+</div>
+<table id="board"></table>
+<div>
+  <button id="ton">トン</button>
+  <button id="nigi">にぎ</button>
+</div>
+<p>現在の行: <span id="rowIndex">1</span></p>
+<canvas id="scoreChart"></canvas>
+
+<script>
+const symbols = ["○", "★", "▲"];
+const map = {
+  "": "トントン",
+  "▲": "にぎにぎ",
+  "★": "トンにぎ",
+  "○": "にぎトン"
+};
+let bestScore = 0;
+let scoreHistory = [];
+let currentRow = 0;
+let chart;
+
+// 履歴読み込み
+window.onload = () => {
+  const savedBest = localStorage.getItem("bestScore");
+  const savedHistory = localStorage.getItem("scoreHistory");
+  if (savedBest) {
+    bestScore = parseInt(savedBest);
+    document.getElementById("best").textContent = bestScore;
+  }
+  if (savedHistory) scoreHistory = JSON.parse(savedHistory);
+  createBoard();
+  randomSetup();
+  highlightRow();
+  drawChart();
+};
+
+// 盤面作成
+function createBoard() {
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  for (let r = 0; r < 3; r++) {
+    const row = document.createElement("tr");
+    for (let c = 0; c < 3; c++) {
+      const cell = document.createElement("td");
+      row.appendChild(cell);
+    }
+    const recordCell = document.createElement("td");
+    recordCell.style.fontSize = "18px";
+    row.appendChild(recordCell);
+    board.appendChild(row);
+  }
+}
+
+// 出現パターン生成（2,2,2 or 3,2,1）
+function randomSetup() {
+  const board = document.getElementById("board");
+  const pattern = Math.random() < 0.5 ? [2,2,2] : [3,2,1];
+  const shuffledSymbols = shuffle(symbols.slice());
+  const allSymbols = [];
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < pattern[i]; j++) allSymbols.push(shuffledSymbols[i]);
+  }
+  while (allSymbols.length < 9) allSymbols.push(symbols[Math.floor(Math.random()*3)]);
+  const final = shuffle(allSymbols).slice(0,9);
+
+  const cells = board.querySelectorAll("td");
+  let index = 0;
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      cells[r*4 + c].textContent = final[index++];
+    }
+    cells[r*4 + 3].textContent = "";
+  }
+  document.getElementById("current").textContent = 0;
+  currentRow = 0;
+  highlightRow();
+}
+
+// シャッフル
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+// 「トン」「にぎ」ボタン
+document.getElementById("ton").onclick = () => recordMove("トン");
+document.getElementById("nigi").onclick = () => recordMove("にぎ");
+
+function recordMove(move) {
+  const board = document.getElementById("board");
+  const recordCell = board.rows[currentRow].cells[3];
+  recordCell.textContent += move;
+  // 自動採点＆次の行へ
+  if (recordCell.textContent.length >= 6) {
+    autoCheckRow(currentRow);
+    nextRow();
+  }
+}
+
+// 行切り替え
+function nextRow() {
+  const board = document.getElementById("board");
+  board.rows[currentRow].classList.remove("active");
+  currentRow = (currentRow + 1) % 3;
+  document.getElementById("rowIndex").textContent = currentRow + 1;
+  highlightRow();
+  if (currentRow === 0) {
+    autoCheckAll();
+    setTimeout(randomSetup, 1500); // 次の配置
+  }
+}
+
+// ハイライト
+function highlightRow() {
+  const board = document.getElementById("board");
+  for (let r = 0; r < 3; r++) board.rows[r].classList.remove("active");
+  board.rows[currentRow].classList.add("active");
+}
+
+// 自動採点（1行）
+function autoCheckRow(r) {
+  const board = document.getElementById("board");
+  const correctMoves = [];
+  for (let c = 0; c < 3; c++) {
+    const sym = board.rows[r].cells[c].textContent;
+    correctMoves.push(map[sym] || "トントン");
+  }
+  const correct = correctMoves.join("");
+  const answer = board.rows[r].cells[3].textContent;
+  if (answer === correct) {
+    board.rows[r].cells[3].style.background = "#b7f5c4";
+  } else {
+    board.rows[r].cells[3].style.background = "#f7b0b0";
+  }
+}
+
+// 全体採点
+function autoCheckAll() {
+  const board = document.getElementById("board");
+  let score = 0;
+  for (let r = 0; r < 3; r++) {
+    const correctMoves = [];
+    for (let c = 0; c < 3; c++) {
+      const sym = board.rows[r].cells[c].textContent;
+      correctMoves.push(map[sym] || "トントン");
+    }
+    const correct = correctMoves.join("");
+    const answer = board.rows[r].cells[3].textContent;
+    if (answer === correct) score++;
+  }
+  document.getElementById("current").textContent = score;
+  scoreHistory.push(score);
+  localStorage.setItem("scoreHistory", JSON.stringify(scoreHistory));
+  if (score > bestScore) {
+    bestScore = score;
+    localStorage.setItem("bestScore", bestScore);
+    document.getElementById("best").textContent = bestScore;
+  }
+  drawChart();
+}
+
+// グラフ描画
+function drawChart() {
+  const ctx = document.getElementById("scoreChart").getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: scoreHistory.map((_, i) => i + 1),
+      datasets: [{
+        label: "スコア履歴",
+        data: scoreHistory,
+        borderColor: "#4CAF50",
+        borderWidth: 2,
+        fill: false,
+        tension: 0.2
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: { title: { display: true, text: "プレイ回数" } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: "スコア" } }
+      }
+    }
+  });
+}
+</script>
+</body>
+</html>
