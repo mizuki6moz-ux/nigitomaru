@@ -6,7 +6,10 @@
 <title>トンにぎゲーム</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
+
   body {
+  touch-action: manipulation; /* ダブルタップ拡大やピンチを抑制 */
+  -ms-touch-action: manipulation;
   font-family: "Segoe UI", sans-serif;
   text-align: center;
   background: #0f0f1a;
@@ -79,6 +82,16 @@ let best = localStorage.getItem("best") || 0;
 let history = JSON.parse(localStorage.getItem("hist")) || [];
 let chart;
 
+let lastTap = 0;
+document.addEventListener('touchend', function (e) {
+  const now = new Date().getTime();
+  if (now - lastTap < 300) { 
+    e.preventDefault(); // ダブルタップ拡大を防ぐ
+  }
+  lastTap = now;
+}, { passive: false });
+
+  
 // 起動時リセット
 localStorage.removeItem("hist");
 localStorage.removeItem("best");
@@ -122,14 +135,19 @@ function startGame(){
   document.getElementById("score").textContent=0;
 }
 //フルスクリーン
-document.getElementById("fullscreen").onclick = () => {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
-};
-
+// スマホ判定
+const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+if (isMobile) {
+  document.getElementById("fullscreen").style.display = "none";
+} else {
+  document.getElementById("fullscreen").onclick = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+}
 
 
 // トン・にぎ押下
