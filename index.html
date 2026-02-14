@@ -3,358 +3,218 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>トンにぎゲーム — マス単位判定</title>
+<title>トンにぎゲーム</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  :root{
-    --bg:#0f0f1a;
-    --panel:#1a1a2e;
-    --neon:#00ffff;
-    --accent:#00ffcc;
-    --ok:#00ff66;
-    --bad:#ff4d4d;
-  }
+body {
+  font-family: "Segoe UI", sans-serif;
+  text-align: center;
+  background: #0f0f1a;
+  color: #ffffff;
+  margin: 0;
+  padding: 20px;
+  touch-action: manipulation;
+}
 
-  html,body { height:100%; }
-  body {
-    touch-action: manipulation;
-    -ms-touch-action: manipulation;
-    font-family: "Segoe UI", sans-serif;
-    text-align: center;
-    background: var(--bg);
-    color: #ffffff;
-    margin: 0;
-    padding: 20px;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-  }
+table {
+  margin: 10px auto;
+  border-collapse: collapse;
+}
+td {
+  border: 2px solid #00ffff;
+  width: 70px;
+  height: 70px;
+  font-size: 32px;
+  text-align: center;
+  background: #1a1a2e;
+  box-shadow: 0 0 10px #00ffff;
+  position: relative;
+}
+td.correct { background-color: #0f0; color:#000; }
+td.wrong { background-color: #f00; color:#000; }
 
-  h1 { margin: 6px 0 0 0; font-size:28px; letter-spacing:1px; }
+tr.active { background: #ad9452; }
 
-  .status { font-size:16px; margin:6px 0; }
+button {
+  font-size: 20px;
+  margin: 6px;
+  padding: 12px 24px;
+  border-radius: 10px;
+  border: 2px solid #00ffcc;
+  color: #00ffcc;
+  background: transparent;
+  box-shadow: 0 0 10px #00ffcc;
+}
+button:active {
+  background: #00ffcc;
+  color: #000;
+}
 
-  table { margin: 6px auto; border-collapse: collapse; }
-  td {
-    border: 2px solid var(--neon);
-    width: 80px;
-    height: 80px;
-    padding:6px;
-    box-sizing:border-box;
-    background: var(--panel);
-    box-shadow: 0 0 12px rgba(0,255,255,0.08);
-    position:relative;
-    vertical-align:middle;
-    text-align:center;
-    border-radius:8px;
-    transition: box-shadow .18s, transform .08s, border-color .18s;
-  }
-  .cell-symbol { display:block; font-size:32px; line-height:1; }
-  .cell-input { display:block; font-size:12px; color: #cfe; margin-top:4px; opacity:0.9; }
-  .cell-feedback {
-    position:absolute; inset:6px;
-    border-radius:8px;
-    pointer-events:none;
-  }
-
-  td.current {
-    box-shadow: 0 0 20px var(--accent);
-    transform: translateY(-4px);
-  }
-
-  td.correct { border-color: var(--ok); box-shadow: 0 0 18px rgba(0,255,102,0.18); }
-  td.wrong { border-color: var(--bad); box-shadow: 0 0 18px rgba(255,77,77,0.18); opacity:0.95; }
-
-  .controls { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:6px; }
-  button {
-    font-size:18px;
-    margin: 6px;
-    padding: 12px 28px;
-    border-radius: 12px;
-    border: 2px solid var(--accent);
-    color: var(--accent);
-    background: transparent;
-    box-shadow: 0 0 12px rgba(0,255,204,0.06);
-    min-width:98px;
-  }
-  button:active { transform: translateY(2px); background: var(--accent); color:#000; }
-  #fullscreen { min-width: 120px; }
-
-  .small { font-size:13px; color:#ddd; }
- 
-  canvas{ margin-top:12px; width:90%; max-width:400px; height:120px; }
-  td.correct, td.wrong{ box-shadow:none !important; } /* 色重なり防止 */
-
-  /* モバイルでタップしやすく */
-  @media (max-width:480px){
-    td{ width:72px; height:72px; font-size:28px; }
-    button{ font-size:18px; padding:12px 22px; min-width:86px; }
-    h1{ font-size:22px; }
-  }
+canvas{ margin-top:12px; width:90%; max-width:400px; height:120px; }
 </style>
 </head>
 <body>
 
 <h1>トンにぎゲーム</h1>
-<p class="status"><b>スコア:</b> <span id="score">0</span>　
+<p><b>スコア:</b> <span id="score">0</span>　
 <b>ベスト:</b> <span id="best">0</span></p>
 
-<table id="board" aria-label="ゲーム盤"></table>
+<table id="board"></table>
 
-<div class="controls">
+<div>
   <button id="fullscreen">フルスクリーン</button>
-  <button id="start">スタート</button>
+  <button id="start">スタート</button><br>
   <button id="ton">トン</button>
   <button id="nigi">にぎ</button>
-  <button id="resetHistory">履歴リセット</button>
 </div>
 
-<canvas id="chart" aria-hidden="false"></canvas>
+<canvas id="chart"></canvas>
 
 <script>
-/* ---------- 設定 ---------- */
-const symbols = ["○","★","▲",""]; // 空はマス無し（スキップ）
-const expectedSeq = {
-  "○": ["にぎ","トン"],
-  "★": ["トン","にぎ"],
-  "▲": ["にぎ","にぎ"],
-  "": ["トン","トン"]
-};
-/* ------------------------- */
+const symbols = ["○","★","▲"];
+const map = { "○":["にぎ","トン"], "★":["トン","にぎ"], "▲":["にぎ","にぎ"], "":[""] };
 
-const board = document.getElementById("board");
+let board = document.getElementById("board");
 let currentRow = 0;
 let currentCol = 0;
 let score = 0;
-let best = Number(localStorage.getItem("best") || 0);
-let history = JSON.parse(localStorage.getItem("hist") || "[]");
-let chart = null;
+let best = parseInt(localStorage.getItem("best")||0);
+let history = JSON.parse(localStorage.getItem("hist")||"[]");
+let chart;
 
 document.getElementById("best").textContent = best;
 
-/* 二重タップ拡大対策（iOS向け） */
-/*
-let lastTap = 0;
-document.addEventListener('touchend', function (e) {
-  const now = Date.now();
-  if (now - lastTap < 300) {
-    e.preventDefault();
-  }
-  lastTap = now;
-}, { passive: false });
-*/
-/* 履歴リセットボタン */
-document.getElementById("resetHistory").addEventListener("click", () => {
-  if (!confirm("スコア履歴を削除します。よろしいですか？")) return;
-  history = [];
-  localStorage.removeItem("hist");
-  drawChart();
-});
-
-/* グラフ描画 */
+// グラフ描画
 function drawChart(){
   const ctx = document.getElementById("chart").getContext("2d");
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: "line",
-    data: {
+  if(chart) chart.destroy();
+  chart = new Chart(ctx,{
+    type:"line",
+    data:{
       labels: history.map((_,i)=>i+1),
-      datasets: [{ label: "スコア履歴", data: history, borderColor: "#4CAF50", fill:false, tension:0.2 }]
+      datasets:[{label:"スコア履歴", data: history, borderColor:"#4CAF50", fill:false, tension:0.2}]
     },
-    options: { scales: { y: { beginAtZero:true, ticks:{ stepSize:1 }}}}
+    options:{scales:{y:{beginAtZero:true, ticks:{stepSize:1}}}}
   });
 }
 drawChart();
 
-/* 盤面生成（3行×3列） */
-function makeBoard(){
-  board.innerHTML = "";
-  for (let r=0;r<3;r++){
-    const tr = document.createElement("tr");
-    for (let c=0;c<3;c++){
+// 盤面生成
+function createBoard(){
+  board.innerHTML="";
+  for(let r=0;r<3;r++){
+    const row = document.createElement("tr");
+    for(let c=0;c<3;c++){
       const td = document.createElement("td");
-      td.classList.add("cell");
-      td.dataset.r = r;
-      td.dataset.c = c;
       td.dataset.symbol = "";
-      td.dataset.input = ""; // 入力履歴（カンマ区切り）
-      td.innerHTML = `<span class="cell-symbol"></span><span class="cell-input"></span><div class="cell-feedback"></div>`;
-      tr.appendChild(td);
+      td.dataset.input = "";
+      td.innerHTML='<span class="cell-input"></span>';
+      row.appendChild(td);
     }
-    board.appendChild(tr);
+    row.appendChild(document.createElement("td")); // 判定表示用スペース
+    board.appendChild(row);
   }
 }
-makeBoard();
 
-/* ランダム盤面作成（記号をバランスよく配置） */
-function shuffle(arr){
-  for (let i=arr.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
-  return arr;
-}
-
-function generateBalancedSymbols(){
-  // 合計9マス分の記号（空含む）を作る
-  const all = [];
-  // simple approach: ensure each symbol appears at least twice, then fill rest
-  const base = ["○","★","▲"];
-  for (const s of base) { all.push(s); all.push(s); } // 各2個 = 6
-  all.push(""); all.push(""); all.push(""); // 空3個 = 9
-  return shuffle(all);
-}
-
-/* スタート処理 */
-document.getElementById("start").addEventListener("click", startGame);
+// スタート
+document.getElementById("start").onclick=startGame;
 function startGame(){
-  score = 0;
-  currentRow = 0; currentCol = 0;
-  const symbolsArr = generateBalancedSymbols();
-  // 配置（3x3）
-  for (let i=0;i<9;i++){
+  score=0;
+  currentRow=0;
+  currentCol=0;
+  document.getElementById("score").textContent=0;
+  const all = generateBalancedSymbols();
+  for(let i=0;i<9;i++){
     const r = Math.floor(i/3);
     const c = i%3;
     const td = board.rows[r].cells[c];
-    const sym = symbolsArr[i];
-    td.dataset.symbol = sym;
+    td.dataset.symbol = all[i];
     td.dataset.input = "";
-    td.classList.remove("correct","wrong","current");
-    td.querySelector(".cell-symbol").textContent = sym; // 表示する
-    td.querySelector(".cell-input").textContent = ""; 
+    td.querySelector(".cell-input").textContent = all[i];
+    td.classList.remove("correct","wrong");
   }
-  highlightCell(0,0);
-  document.getElementById("score").textContent = score;
+  highlightRow(0);
 }
 
-/* ハイライト */
-function highlightCell(r,c){
-  // remove all current
-  for (let rr=0; rr<3; rr++) for (let cc=0; cc<3; cc++){
-    board.rows[rr].cells[cc].classList.remove("current");
-  }
-  const td = board.rows[r].cells[c];
-  td.classList.add("current");
+// ハイライト
+function highlightRow(i){
+  for(let r=0;r<3;r++) board.rows[r].classList.remove("active");
+  board.rows[i].classList.add("active");
 }
 
-/* ボタン操作（タッチ対応） */
-const tonBtn = document.getElementById("ton");
-const nigiBtn = document.getElementById("nigi");
-
-function makeHandler(action){
-  return function(e){
-    if (e && e.type === "touchstart") { e.preventDefault(); } // prevent delayed click
-    handleInput(action);
+// フルスクリーン
+if(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)){
+  document.getElementById("fullscreen").style.display="none";
+}else{
+  document.getElementById("fullscreen").onclick=()=> {
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen();
+    else document.exitFullscreen();
   };
 }
-tonBtn.addEventListener("click", makeHandler("トン"));
-nigiBtn.addEventListener("click", makeHandler("にぎ"));
-tonBtn.addEventListener("touchstart", makeHandler("トン"), { passive:false });
-nigiBtn.addEventListener("touchstart", makeHandler("にぎ"), { passive:false });
 
-
-function handleInput(action){
+// トン・にぎボタン
+function record(action){
   const td = board.rows[currentRow].cells[currentCol];
-  const sym = td.dataset.symbol || "";
-  const expect = expectedSeq[sym] || [];
-  if(!expect.length) return; // 念のため
-  // 入力履歴を分解
-  const inputs = td.dataset.input ? td.dataset.input.split(",") : [];
-  if(inputs.length >= expect.length) return; // 完了済
-  // 前の色をリセット
   td.classList.remove("correct","wrong");
 
+  let inputs = td.dataset.input? td.dataset.input.split(",") : [];
   inputs.push(action);
   td.dataset.input = inputs.join(",");
+
   td.querySelector(".cell-input").textContent = inputs.join(" ");
 
-  // 判定
-  if(inputs.length === expect.length){
-    const ok = inputs.every((v,i)=>v === expect[i]);
+  const correctSeq = map[td.dataset.symbol]||[];
+  if(inputs.length >= correctSeq.length){
+    const ok = inputs.every((v,i)=>v===correctSeq[i]);
     td.classList.add(ok?"correct":"wrong");
-    if(ok) score += 1;
-    document.getElementById("score").textContent = score;
-    setTimeout(moveNextCell,300);
-  }
-}
-
-  // append input
-  const inputs = td.dataset.input ? td.dataset.input.split(",") : [];
-  if (inputs.length >= expect.length) return; // すでに完了
-  inputs.push(action);
-  td.dataset.input = inputs.join(",");
-  td.querySelector(".cell-input").textContent = inputs.join(" ");
-
-  // 判定（完了したら） 
-  if (inputs.length === expect.length){
-    const ok = inputs.every((v,i)=>v === expect[i]);
-    if (ok){
-      td.classList.add("correct");
-      score += 1;
-    } else {
-      td.classList.add("wrong");
-    }
-    document.getElementById("score").textContent = score;
-    // 少しだけ表示して次のセルへ
-    setTimeout(moveNextCell, 300);
-  }
-}
-
-/* 次のセルへ（行内→次行→終了） */
-function moveNextCell(){
-  // remove current class from current cell
-  const curTd = board.rows[currentRow].cells[currentCol];
-  curTd.classList.remove("current");
-  // advance column
-  currentCol++;
-  if (currentCol >= 3){
-    // 次の行
-    currentCol = 0;
-    currentRow++;
-    if (currentRow >= 3){
-      // ゲーム終了
-      finishGame();
-      return;
+    if(ok) score+=1;
+    document.getElementById("score").textContent=score;
+    currentCol++;
+    if(currentCol>=3){
+      currentCol=0;
+      currentRow++;
+      if(currentRow>=3){
+        finish();
+      }else highlightRow(currentRow);
     }
   }
-  highlightCell(currentRow, currentCol);
 }
 
-/* ゲーム終了 */
-function finishGame(){
-  // 保存
+document.getElementById("ton").addEventListener("click",()=>record("トン"));
+document.getElementById("nigi").addEventListener("click",()=>record("にぎ"));
+document.getElementById("ton").addEventListener("touchstart", e=>{e.preventDefault();record("トン");},{passive:false});
+document.getElementById("nigi").addEventListener("touchstart", e=>{e.preventDefault();record("にぎ");},{passive:false});
+
+// ゲーム終了
+function finish(){
   history.push(score);
-  localStorage.setItem("hist", JSON.stringify(history));
-  if (score > best){
-    best = score;
-    localStorage.setItem("best", best);
+  localStorage.setItem("hist",JSON.stringify(history));
+  if(score>best){
+    best=score;
+    localStorage.setItem("best",best);
   }
-  document.getElementById("best").textContent = best;
+  document.getElementById("best").textContent=best;
   drawChart();
-  // 結果パネル（簡易）
-  setTimeout(()=> {
-    alert(`ゲーム終了！ スコア: ${score}`);
-  }, 120);
 }
 
-/* フルスクリーンはPCのみ表示 */
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-if (isMobile){
-  document.getElementById("fullscreen").style.display = "none";
-} else {
-  document.getElementById("fullscreen").addEventListener("click", () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
-  });
+// 記号をランダムに生成
+function shuffle(arr){for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+function generateBalancedSymbols(){
+  const all=[]; 
+  const pattern=Math.random()<0.5?"even":"mixed"; 
+  const counts={}; 
+  if(pattern==="even"){ for(const s of symbols) counts[s]=3; }
+  else{
+    const base=[3,2,1];
+    const shuffled=shuffle(base);
+    for(let i=0;i<3;i++) counts[symbols[i]]=shuffled[i];
+  }
+  for(const s of symbols) for(let i=0;i<counts[s];i++) all.push(s);
+  while(all.length<9) all.push('');
+  return shuffle(all);
 }
 
-/* 起動時に盤面作成だけ（スタートで初期化） */
-startGame();
-
+createBoard();
 </script>
 </body>
 </html>
