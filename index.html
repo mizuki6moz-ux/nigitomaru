@@ -82,12 +82,14 @@
   #fullscreen { min-width: 120px; }
 
   .small { font-size:13px; color:#ddd; }
-  canvas { margin-top: 12px; width: 90%; max-width: 420px; }
+ 
+  canvas{ margin-top:12px; width:90%; max-width:400px; height:120px; }
+  td.correct, td.wrong{ box-shadow:none !important; } /* 色重なり防止 */
 
   /* モバイルでタップしやすく */
   @media (max-width:480px){
     td{ width:72px; height:72px; font-size:28px; }
-    button{ font-size:18px; padding:14px 26px; min-width:86px; }
+    button{ font-size:18px; padding:12px 22px; min-width:86px; }
     h1{ font-size:22px; }
   }
 </style>
@@ -117,7 +119,7 @@ const expectedSeq = {
   "○": ["にぎ","トン"],
   "★": ["トン","にぎ"],
   "▲": ["にぎ","にぎ"],
-  "": []
+  "": ["トン","トン"]
 };
 /* ------------------------- */
 
@@ -132,6 +134,7 @@ let chart = null;
 document.getElementById("best").textContent = best;
 
 /* 二重タップ拡大対策（iOS向け） */
+/*
 let lastTap = 0;
 document.addEventListener('touchend', function (e) {
   const now = Date.now();
@@ -140,7 +143,7 @@ document.addEventListener('touchend', function (e) {
   }
   lastTap = now;
 }, { passive: false });
-
+*/
 /* 履歴リセットボタン */
 document.getElementById("resetHistory").addEventListener("click", () => {
   if (!confirm("スコア履歴を削除します。よろしいですか？")) return;
@@ -250,16 +253,32 @@ nigiBtn.addEventListener("click", makeHandler("にぎ"));
 tonBtn.addEventListener("touchstart", makeHandler("トン"), { passive:false });
 nigiBtn.addEventListener("touchstart", makeHandler("にぎ"), { passive:false });
 
-/* 入力処理（1マスずつ） */
+
 function handleInput(action){
   const td = board.rows[currentRow].cells[currentCol];
   const sym = td.dataset.symbol || "";
   const expect = expectedSeq[sym] || [];
-  if (expect.length === 0){
-    // 空のマスはスキップして次へ
-    moveNextCell();
-    return;
+  if(!expect.length) return; // 念のため
+  // 入力履歴を分解
+  const inputs = td.dataset.input ? td.dataset.input.split(",") : [];
+  if(inputs.length >= expect.length) return; // 完了済
+  // 前の色をリセット
+  td.classList.remove("correct","wrong");
+
+  inputs.push(action);
+  td.dataset.input = inputs.join(",");
+  td.querySelector(".cell-input").textContent = inputs.join(" ");
+
+  // 判定
+  if(inputs.length === expect.length){
+    const ok = inputs.every((v,i)=>v === expect[i]);
+    td.classList.add(ok?"correct":"wrong");
+    if(ok) score += 1;
+    document.getElementById("score").textContent = score;
+    setTimeout(moveNextCell,300);
   }
+}
+
   // append input
   const inputs = td.dataset.input ? td.dataset.input.split(",") : [];
   if (inputs.length >= expect.length) return; // すでに完了
