@@ -239,6 +239,7 @@ function handleInput(action){
   // append input
   const inputs = td.dataset.input ? td.dataset.input.split(",") : [];
   if (inputs.length >= expect.length) return; // すでに完了
+  td.classList.remove("correct","wrong");
   inputs.push(action);
   td.dataset.input = inputs.join(",");
   td.querySelector(".cell-input").textContent = inputs.join(" ");
