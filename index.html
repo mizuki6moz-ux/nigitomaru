@@ -296,6 +296,12 @@ function finishGame(){
     alert(`ゲーム終了！ スコア: ${score}`);
   }, 120);
   startGame();
+  // 起動時リセット
+  localStorage.removeItem("hist");
+  localStorage.removeItem("best");
+  history = [];
+  best = 0;
+  document.getElementById("best").textContent = 0;
 }
 
 /* フルスクリーンはPCのみ表示 */
