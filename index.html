@@ -117,7 +117,7 @@ const expectedSeq = {
   "○": ["にぎ","トン"],
   "★": ["トン","にぎ"],
   "▲": ["にぎ","にぎ"],
-  "": []
+  "": ["トン","トン"]
 };
 /* ------------------------- */
 
@@ -131,15 +131,6 @@ let chart = null;
 
 document.getElementById("best").textContent = best;
 
-/* 二重タップ拡大対策（iOS向け） */
-let lastTap = 0;
-document.addEventListener('touchend', function (e) {
-  const now = Date.now();
-  if (now - lastTap < 300) {
-    e.preventDefault();
-  }
-  lastTap = now;
-}, { passive: false });
 
 /* 履歴リセットボタン */
 document.getElementById("resetHistory").addEventListener("click", () => {
@@ -255,11 +246,6 @@ function handleInput(action){
   const td = board.rows[currentRow].cells[currentCol];
   const sym = td.dataset.symbol || "";
   const expect = expectedSeq[sym] || [];
-  if (expect.length === 0){
-    // 空のマスはスキップして次へ
-    moveNextCell();
-    return;
-  }
   // append input
   const inputs = td.dataset.input ? td.dataset.input.split(",") : [];
   if (inputs.length >= expect.length) return; // すでに完了
