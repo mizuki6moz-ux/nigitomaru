@@ -18,6 +18,8 @@
   padding: 20px;
   }
 
+  canvas { margin-top: 20px; width: 90%; max-width: 400px; }
+
   table {
     margin: 10px auto;
     border-collapse: collapse;
@@ -50,7 +52,6 @@
   }
 
   button:active { background: #45a049; }
-  canvas { margin-top: 20px; width: 90%; max-width: 400px; }
 </style>
 </head>
 <body>
@@ -151,8 +152,24 @@ if (isMobile) {
 
 
 // トン・にぎ押下
-document.getElementById("ton").onclick=()=> record("トン");
-document.getElementById("nigi").onclick=()=> record("にぎ");
+const buttons = [
+  document.getElementById("ton"),
+  document.getElementById("nigi")
+];
+
+buttons.forEach(btn => {
+  const handler = () => record(btn.id === "ton" ? "トン" : "にぎ");
+  
+  // 通常のクリック
+  btn.addEventListener("click", handler);
+  
+  // タッチデバイス対応（即時反応）
+  btn.addEventListener("touchstart", e => { 
+    e.preventDefault(); // clickの二重発火防止
+    handler();
+  }, { passive: false });
+});
+
 
 function record(action){
   const row=board.rows[currentRow];
