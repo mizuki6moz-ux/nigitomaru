@@ -3,259 +3,338 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>トンにぎゲーム</title>
+<title>トンにぎゲーム — マス単位判定</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
+  :root{
+    --bg:#0f0f1a;
+    --panel:#1a1a2e;
+    --neon:#00ffff;
+    --accent:#00ffcc;
+    --ok:#00ff66;
+    --bad:#ff4d4d;
+  }
 
+  html,body { height:100%; }
   body {
-  touch-action: manipulation; /* ダブルタップ拡大やピンチを抑制 */
-  -ms-touch-action: manipulation;
-  font-family: "Segoe UI", sans-serif;
-  text-align: center;
-  background: #0f0f1a;
-  color: #ffffff;
-  margin: 0;
-  padding: 20px;
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
+    font-family: "Segoe UI", sans-serif;
+    text-align: center;
+    background: var(--bg);
+    color: #ffffff;
+    margin: 0;
+    padding: 20px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
   }
 
-  canvas { margin-top: 20px; width: 90%; max-width: 400px; }
+  h1 { margin: 6px 0 0 0; font-size:28px; letter-spacing:1px; }
 
-  table {
-    margin: 10px auto;
-    border-collapse: collapse;
-  }
+  .status { font-size:16px; margin:6px 0; }
+
+  table { margin: 6px auto; border-collapse: collapse; }
   td {
-  border: 2px solid #00ffff;
-  width: 70px;
-  height: 70px;
-  font-size: 32px;
-  text-align: center;
-  background: #1a1a2e;
-  box-shadow: 0 0 10px #00ffff;
+    border: 2px solid var(--neon);
+    width: 80px;
+    height: 80px;
+    padding:6px;
+    box-sizing:border-box;
+    background: var(--panel);
+    box-shadow: 0 0 12px rgba(0,255,255,0.08);
+    position:relative;
+    vertical-align:middle;
+    text-align:center;
+    border-radius:8px;
+    transition: box-shadow .18s, transform .08s, border-color .18s;
   }
-  tr.active {
-    background: #ad9452;
-  }
-  button {
-  font-size: 20px;
-  margin: 6px;
-  padding: 12px 24px;
-  border-radius: 10px;
-  border: 2px solid #00ffcc;
-  color: #00ffcc;
-  background: transparent;
-  box-shadow: 0 0 10px #00ffcc;
-  }
-  button:active {
-  background: #00ffcc;
-  color: #000;
+  .cell-symbol { display:block; font-size:32px; line-height:1; }
+  .cell-input { display:block; font-size:12px; color: #cfe; margin-top:4px; opacity:0.9; }
+  .cell-feedback {
+    position:absolute; inset:6px;
+    border-radius:8px;
+    pointer-events:none;
   }
 
-  button:active { background: #45a049; }
+  td.current {
+    box-shadow: 0 0 20px var(--accent);
+    transform: translateY(-4px);
+  }
+
+  td.correct { border-color: var(--ok); box-shadow: 0 0 18px rgba(0,255,102,0.18); }
+  td.wrong { border-color: var(--bad); box-shadow: 0 0 18px rgba(255,77,77,0.18); opacity:0.95; }
+
+  .controls { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:6px; }
+  button {
+    font-size:18px;
+    margin: 6px;
+    padding: 12px 28px;
+    border-radius: 12px;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    background: transparent;
+    box-shadow: 0 0 12px rgba(0,255,204,0.06);
+    min-width:98px;
+  }
+  button:active { transform: translateY(2px); background: var(--accent); color:#000; }
+  #fullscreen { min-width: 120px; }
+
+  .small { font-size:13px; color:#ddd; }
+  canvas { margin-top: 12px; width: 90%; max-width: 420px; }
+
+  /* モバイルでタップしやすく */
+  @media (max-width:480px){
+    td{ width:72px; height:72px; font-size:28px; }
+    button{ font-size:18px; padding:14px 26px; min-width:86px; }
+    h1{ font-size:22px; }
+  }
 </style>
 </head>
 <body>
 
 <h1>トンにぎゲーム</h1>
-<p><b>スコア:</b> <span id="score">0</span>　
+<p class="status"><b>スコア:</b> <span id="score">0</span>　
 <b>ベスト:</b> <span id="best">0</span></p>
 
-<table id="board"></table>
+<table id="board" aria-label="ゲーム盤"></table>
 
-<div>
+<div class="controls">
   <button id="fullscreen">フルスクリーン</button>
-  <button id="start">スタート</button><br>
+  <button id="start">スタート</button>
   <button id="ton">トン</button>
   <button id="nigi">にぎ</button>
+  <button id="resetHistory">履歴リセット</button>
 </div>
 
-<canvas id="chart"></canvas>
+<canvas id="chart" aria-hidden="false"></canvas>
 
 <script>
+/* ---------- 設定 ---------- */
+const symbols = ["○","★","▲",""]; // 空はマス無し（スキップ）
+const expectedSeq = {
+  "○": ["にぎ","トン"],
+  "★": ["トン","にぎ"],
+  "▲": ["にぎ","にぎ"],
+  "": []
+};
+/* ------------------------- */
 
-const symbols = ["○", "★", "▲"];
-const map = { "○":"にぎトン", "★":"トンにぎ", "▲":"にぎにぎ" ,"":"トントン"};
-let board = document.getElementById("board");
+const board = document.getElementById("board");
 let currentRow = 0;
-let rowStart = 0;
+let currentCol = 0;
 let score = 0;
-let best = localStorage.getItem("best") || 0;
-let history = JSON.parse(localStorage.getItem("hist")) || [];
-let chart;
-/*
+let best = Number(localStorage.getItem("best") || 0);
+let history = JSON.parse(localStorage.getItem("hist") || "[]");
+let chart = null;
+
+document.getElementById("best").textContent = best;
+
+/* 二重タップ拡大対策（iOS向け） */
 let lastTap = 0;
 document.addEventListener('touchend', function (e) {
-  const now = new Date().getTime();
-  if (now - lastTap < 300) { 
-    e.preventDefault(); // ダブルタップ拡大を防ぐ
+  const now = Date.now();
+  if (now - lastTap < 300) {
+    e.preventDefault();
   }
   lastTap = now;
 }, { passive: false });
-*/  
-// 起動時リセット
-localStorage.removeItem("hist");
-localStorage.removeItem("best");
-history = [];
-best = 0;
-document.getElementById("best").textContent = 0;
-document.getElementById("best").textContent = best;
 
-// グラフ
+/* 履歴リセットボタン */
+document.getElementById("resetHistory").addEventListener("click", () => {
+  if (!confirm("スコア履歴を削除します。よろしいですか？")) return;
+  history = [];
+  localStorage.removeItem("hist");
+  drawChart();
+});
+
+/* グラフ描画 */
 function drawChart(){
-  const ctx=document.getElementById("chart").getContext("2d");
-  if(chart)chart.destroy();
-  chart=new Chart(ctx,{
-    type:"line",
-    data:{
-      labels:history.map((_,i)=>i+1),
-      datasets:[{label:"スコア履歴",data:history,borderColor:"#4CAF50",fill:false,tension:0.2}]
+  const ctx = document.getElementById("chart").getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: history.map((_,i)=>i+1),
+      datasets: [{ label: "スコア履歴", data: history, borderColor: "#4CAF50", fill:false, tension:0.2 }]
     },
-    options:{scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}
+    options: { scales: { y: { beginAtZero:true, ticks:{ stepSize:1 }}}}
   });
 }
 drawChart();
-  
-// 盤面生成
-for (let r=0; r<3; r++){
-  const row=document.createElement("tr");
-  for (let c=0; c<3; c++){
-    const td=document.createElement("td");
-    td.textContent="";
-    row.appendChild(td);
+
+/* 盤面生成（3行×3列） */
+function makeBoard(){
+  board.innerHTML = "";
+  for (let r=0;r<3;r++){
+    const tr = document.createElement("tr");
+    for (let c=0;c<3;c++){
+      const td = document.createElement("td");
+      td.classList.add("cell");
+      td.dataset.r = r;
+      td.dataset.c = c;
+      td.dataset.symbol = "";
+      td.dataset.input = ""; // 入力履歴（カンマ区切り）
+      td.innerHTML = `<span class="cell-symbol"></span><span class="cell-input"></span><div class="cell-feedback"></div>`;
+      tr.appendChild(td);
+    }
+    board.appendChild(tr);
   }
-  const rec=document.createElement("td");
-  rec.textContent="";
-  rec.style.fontSize="16px";
-  row.appendChild(rec);
-  board.appendChild(row);
+}
+makeBoard();
+
+/* ランダム盤面作成（記号をバランスよく配置） */
+function shuffle(arr){
+  for (let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
 }
 
-// スタート
-document.getElementById("start").onclick = startGame;
-function startGame(){
-  score=0;
-  currentRow=0;
-  const all = generateBalancedSymbols();
-  // 9個をしっかり3×3に配置
-  for (let i=0;i<9;i++) {
-    const r = Math.floor(i / 3);
-    const c = i % 3;
-    board.rows[r].cells[c].textContent = all[i];
-  }
-  for (let r=0;r<3;r++) board.rows[r].cells[3].textContent="";
-  highlightRow(0);
-  rowStart=Date.now();
-  document.getElementById("score").textContent=0;
+function generateBalancedSymbols(){
+  // 合計9マス分の記号（空含む）を作る
+  const all = [];
+  // simple approach: ensure each symbol appears at least twice, then fill rest
+  const base = ["○","★","▲"];
+  for (const s of base) { all.push(s); all.push(s); } // 各2個 = 6
+  all.push(""); all.push(""); all.push(""); // 空3個 = 9
+  return shuffle(all);
 }
-//フルスクリーン
-// スマホ判定
+
+/* スタート処理 */
+document.getElementById("start").addEventListener("click", startGame);
+function startGame(){
+  score = 0;
+  currentRow = 0; currentCol = 0;
+  const symbolsArr = generateBalancedSymbols();
+  // 配置（3x3）
+  for (let i=0;i<9;i++){
+    const r = Math.floor(i/3);
+    const c = i%3;
+    const td = board.rows[r].cells[c];
+    const sym = symbolsArr[i];
+    td.dataset.symbol = sym;
+    td.dataset.input = "";
+    td.classList.remove("correct","wrong","current");
+    td.querySelector(".cell-symbol").textContent = sym; // 表示する
+    td.querySelector(".cell-input").textContent = ""; 
+  }
+  highlightCell(0,0);
+  document.getElementById("score").textContent = score;
+}
+
+/* ハイライト */
+function highlightCell(r,c){
+  // remove all current
+  for (let rr=0; rr<3; rr++) for (let cc=0; cc<3; cc++){
+    board.rows[rr].cells[cc].classList.remove("current");
+  }
+  const td = board.rows[r].cells[c];
+  td.classList.add("current");
+}
+
+/* ボタン操作（タッチ対応） */
+const tonBtn = document.getElementById("ton");
+const nigiBtn = document.getElementById("nigi");
+
+function makeHandler(action){
+  return function(e){
+    if (e && e.type === "touchstart") { e.preventDefault(); } // prevent delayed click
+    handleInput(action);
+  };
+}
+tonBtn.addEventListener("click", makeHandler("トン"));
+nigiBtn.addEventListener("click", makeHandler("にぎ"));
+tonBtn.addEventListener("touchstart", makeHandler("トン"), { passive:false });
+nigiBtn.addEventListener("touchstart", makeHandler("にぎ"), { passive:false });
+
+/* 入力処理（1マスずつ） */
+function handleInput(action){
+  const td = board.rows[currentRow].cells[currentCol];
+  const sym = td.dataset.symbol || "";
+  const expect = expectedSeq[sym] || [];
+  if (expect.length === 0){
+    // 空のマスはスキップして次へ
+    moveNextCell();
+    return;
+  }
+  // append input
+  const inputs = td.dataset.input ? td.dataset.input.split(",") : [];
+  if (inputs.length >= expect.length) return; // すでに完了
+  inputs.push(action);
+  td.dataset.input = inputs.join(",");
+  td.querySelector(".cell-input").textContent = inputs.join(" ");
+
+  // 判定（完了したら） 
+  if (inputs.length === expect.length){
+    const ok = inputs.every((v,i)=>v === expect[i]);
+    if (ok){
+      td.classList.add("correct");
+      score += 1;
+    } else {
+      td.classList.add("wrong");
+    }
+    document.getElementById("score").textContent = score;
+    // 少しだけ表示して次のセルへ
+    setTimeout(moveNextCell, 300);
+  }
+}
+
+/* 次のセルへ（行内→次行→終了） */
+function moveNextCell(){
+  // remove current class from current cell
+  const curTd = board.rows[currentRow].cells[currentCol];
+  curTd.classList.remove("current");
+  // advance column
+  currentCol++;
+  if (currentCol >= 3){
+    // 次の行
+    currentCol = 0;
+    currentRow++;
+    if (currentRow >= 3){
+      // ゲーム終了
+      finishGame();
+      return;
+    }
+  }
+  highlightCell(currentRow, currentCol);
+}
+
+/* ゲーム終了 */
+function finishGame(){
+  // 保存
+  history.push(score);
+  localStorage.setItem("hist", JSON.stringify(history));
+  if (score > best){
+    best = score;
+    localStorage.setItem("best", best);
+  }
+  document.getElementById("best").textContent = best;
+  drawChart();
+  // 結果パネル（簡易）
+  setTimeout(()=> {
+    alert(`ゲーム終了！ スコア: ${score}`);
+  }, 120);
+}
+
+/* フルスクリーンはPCのみ表示 */
 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-if (isMobile) {
+if (isMobile){
   document.getElementById("fullscreen").style.display = "none";
 } else {
-  document.getElementById("fullscreen").onclick = () => {
+  document.getElementById("fullscreen").addEventListener("click", () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen();
     } else {
       document.exitFullscreen();
     }
-  };
+  });
 }
 
-
-// トン・にぎ押下
-const buttons = [
-  document.getElementById("ton"),
-  document.getElementById("nigi")
-];
-
-buttons.forEach(btn => {
-  const handler = () => record(btn.id === "ton" ? "トン" : "にぎ");
-  
-  // 通常のクリック
-  btn.addEventListener("click", handler);
-  
-  // タッチデバイス対応（即時反応）
-  btn.addEventListener("touchstart", e => { 
-    e.preventDefault(); // clickの二重発火防止
-    handler();
-  }, { passive: false });
-});
-
-
-function record(action){
-  const row=board.rows[currentRow];
-  row.cells[3].textContent+=action;
-  const ans=row.cells[3].textContent;
-  const correct=Array.from(row.cells).slice(0,4).map(c=>map[c.textContent]||"").join("");
-  if(ans.length>=12){
-    const time=(Date.now()-rowStart)/1000;
-    let rowScore=(ans===correct)?Math.max(1,Math.floor(5-time)):0;
-    score+=rowScore;
-    document.getElementById("score").textContent=score;
-    nextRow();
-  }
-}
-
-// 次の行へ
-function nextRow(){
-  board.rows[currentRow].classList.remove("active");
-  currentRow++;
-  if(currentRow<3){
-    highlightRow(currentRow);
-    rowStart=Date.now();
-  }else finish();
-}
-
-// ハイライト
-function highlightRow(i){
-  for (let r=0;r<3;r++) board.rows[r].classList.remove("active");
-  board.rows[i].classList.add("active");
-}
-
-// ゲーム終了
-function finish(){
-  history.push(score);
-  localStorage.setItem("hist",JSON.stringify(history));
-  if(score>best){
-    best=score;
-    localStorage.setItem("best",best);
-  }
-  document.getElementById("best").textContent=best;
-  drawChart();
-}
-
-// 記号をバランスよく生成（3,2,1 または 2,2,2）
-function shuffle(arr){
-  for(let i=arr.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
-  return arr;
-}
-function generateBalancedSymbols(){
-  const all=[];
-  const pattern=Math.random()<0.5?"even":"mixed";
-  const counts={};
-  if(pattern==="even"){ for(const s of symbols) counts[s]=2; } // ←ここ修正：各3個で9マス
-  else{
-    const base=[3,2,1];
-    const shuffled=shuffle(base);
-    for(let i=0;i<3;i++) counts[symbols[i]]=shuffled[i];
-  }
-  for(const s of symbols) for(let i=0;i<counts[s];i++) all.push(s);
-  for(let i=0;i<3;i++) all.push('');
-  return shuffle(all);
-}
-
-function shuffle(arr){
-  for(let i=arr.length-1;i>0;i--){
-    const j=Math.floor(Math.random()*(i+1));
-    [arr[i],arr[j]]=[arr[j],arr[i]];
-  }
-  return arr;
-}
-
+/* 起動時に盤面作成だけ（スタートで初期化） */
+startGame();
 
 </script>
 </body>
