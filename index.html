@@ -70,7 +70,7 @@
   .controls { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:6px; }
   button {
     font-size:18px;
-    margin: 12px;
+    margin: 6px;
     padding: 12px 28px;
     border-radius: 12px;
     border: 2px solid var(--accent);
@@ -130,8 +130,14 @@ let chart = null;
 
 document.getElementById("best").textContent = best;
 
-
+ // 起動時リセット
+localStorage.removeItem("hist");
+localStorage.removeItem("best");
+history = [];
+best = 0;
+document.getElementById("best").textContent = 0;
 /* グラフ描画 */
+  
 function drawChart(){
   const ctx = document.getElementById("chart").getContext("2d");
   if (chart) chart.destroy();
@@ -296,12 +302,6 @@ function finishGame(){
     alert(`ゲーム終了！ スコア: ${score}`);
   }, 120);
   startGame();
-  // 起動時リセット
-  localStorage.removeItem("hist");
-  localStorage.removeItem("best");
-  history = [];
-  best = 0;
-  document.getElementById("best").textContent = 0;
 }
 
 /* フルスクリーンはPCのみ表示 */
